@@ -15,10 +15,10 @@ import requests
 import json
 
 ### W4: S1: Import the sentence transformer library.  Note: you may need to pip install it as we've noticed it doesn't always get installed properly despite being in our requirements.txt
+#from sentence_transformers import SentenceTransformer
 
 from time import perf_counter
 import concurrent.futures
-
 
 
 logger = logging.getLogger(__name__)
@@ -110,12 +110,15 @@ def get_opensearch():
 def index_file(file, index_name, reduced=False):
     docs_indexed = 0
     ### W4: S1: Load the model.  # We do this here to avoid threading issues
+    #model = SentenceTransformer('all-MiniLM-L6-v2')
+    #print(model)
     client = get_opensearch()
     logger.info(f'Processing file : {file}')
     tree = etree.parse(file)
     root = tree.getroot()
     children = root.findall("./product")
     docs = []
+    #names = []
     for child in children:
         doc = {}
         for idx in range(0, len(mappings), 2):
@@ -129,14 +132,22 @@ def index_file(file, index_name, reduced=False):
             continue
         ### W4: S2: Encode the names
         docs.append({'_index': index_name, '_id':doc['sku'][0], '_source' : doc})
+        #names.append(doc['name'][0])
         #docs.append({'_index': index_name, '_source': doc})
         docs_indexed += 1
         if docs_indexed % 200 == 0:
+            #embeddings = model.encode(names, convert_to_tensor=True)
+            #for doc, embedding in zip(docs, embeddings):
+            #    doc['_source']['embedding'] = embedding.tolist()
             bulk(client, docs, request_timeout=60)
             #logger.info(f'{docs_indexed} documents indexed')
             docs = []
+            #names = []
     if len(docs) > 0:
-        bulk(client, docs, request_timeout=60)
+        #embeddings = model.encode(names, convert_to_tensor=True)
+        #for doc, embedding in zip(docs, embeddings):
+        #    doc['_source']['embedding'] = embedding.tolist()
+        #bulk(client, docs, request_timeout=60)
         logger.info(f'{docs_indexed} documents indexed')
     return docs_indexed
 

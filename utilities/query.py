@@ -17,6 +17,27 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logging.basicConfig(format='%(levelname)s:%(message)s')
 
+from sentence_transformers import SentenceTransformer
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+def create_vector_query(query, num_results):
+    query_array = [query]
+    query_embedding = model.encode(query_array)
+
+    knn_query = {
+        "size": num_results,
+        "query": {
+            "knn": {
+                "embedding": {
+                    "vector": query_embedding[0],
+                    "k": num_results
+                }
+            }
+        }
+    }
+    return knn_query
+
+
 # expects clicks and impressions to be in the row
 def create_prior_queries_from_group(
         click_group):  # total impressions isn't currently used, but it mayb worthwhile at some point
@@ -187,11 +208,14 @@ def create_query(user_query, is_synonym_used, click_prior_query, filters, sort="
     return query_obj
 
 
-def search(client, user_query, is_synonym_used, index="bbuy_products", sort="_score", sortDir="desc"):
+def search(client, user_query, is_synonym_used, is_vector_set, index="bbuy_products", sort="_score", sortDir="desc"):
     #### W3: classify the query
     #### W3: create filters and boosts
     # Note: you may also want to modify the `create_query` method above
-    query_obj = create_query(user_query, is_synonym_used, click_prior_query=None, filters=None, sort=sort, sortDir=sortDir, source=["name", "shortDescription"])
+    if is_vector_set:
+        query_obj = create_vector_query(user_query, 10)
+    else:
+        query_obj = create_query(user_query, is_synonym_used, click_prior_query=None, filters=None, sort=sort, sortDir=sortDir, source=["name", "shortDescription"])
     logging.info(query_obj)
     print(query_obj)
     response = client.search(query_obj, index=index)
@@ -215,6 +239,7 @@ if __name__ == "__main__":
     general.add_argument('--user',
                          help='The OpenSearch admin.  If this is set, the program will prompt for password too. If not set, use default of admin/admin')
     general.add_argument('--synonyms', action="store_true")
+    general.add_argument('--vector', action="store_true")
 
     args = parser.parse_args()
     print(args)
@@ -229,6 +254,7 @@ if __name__ == "__main__":
         password = getpass()
         auth = (args.user, password)
     is_synonym_used = args.synonyms
+    is_vector_set = args.vector
 
     base_url = "https://{}:{}/".format(host, port)
     opensearch = OpenSearch(
@@ -252,7 +278,7 @@ if __name__ == "__main__":
         query = line.rstrip()
         if query == "Exit":
             break
-        search(client=opensearch, user_query=query, is_synonym_used=is_synonym_used, index=index_name)
+        search(client=opensearch, user_query=query, is_synonym_used=is_synonym_used, is_vector_set=is_vector_set, index=index_name)
 
         print(query_prompt)
 
